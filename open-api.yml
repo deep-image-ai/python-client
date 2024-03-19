@@ -1,0 +1,798 @@
+openapi: 3.0.3
+info:
+  version: "1"
+  title: Deep Image
+  description: ""
+servers:
+  - url: https://deep-image.ai
+paths:
+  /rest_api/process_result:
+    post:
+      summary: Schedules a job to perform selected enhancement options and waits for the result.
+      description: It's convenient method that returns the url to the result immediately if the processing time is less than 25 seconds. Otherwise it will return a job hash and the result will be available via "result" method.
+      requestBody:
+        $ref: "#/components/requestBodies/ProcessBody"
+      responses:
+        '200':
+          $ref: "#/components/responses/ProcessResult"
+        '400':
+          $ref: "#/components/responses/ErrorProcessBadRequest"
+        '403':
+          $ref: "#/components/responses/ErrorForbidden"
+        '404':
+          $ref: "#/components/responses/ErrorNotFound"
+        '429':
+          $ref: "#/components/responses/ErrorTooManyRequests"
+        '500':
+          $ref: "#/components/responses/ErrorJobFailed"
+        '5XX':
+          $ref: "#/components/responses/ErrorUnexpected"
+  /rest_api/process:
+    post:
+      summary: Schedules a job to perform selected enhancement options.
+      requestBody:
+        $ref: "#/components/requestBodies/ProcessBody"
+      responses:
+        '200':
+          $ref: "#/components/responses/ProcessResult"
+        '400':
+          $ref: "#/components/responses/ErrorProcessBadRequest"
+        '403':
+          $ref: "#/components/responses/ErrorForbidden"
+        '404':
+          $ref: "#/components/responses/ErrorNotFound"
+        '429':
+          $ref: "#/components/responses/ErrorTooManyRequests"
+        '500':
+          $ref: "#/components/responses/ErrorJobFailed"
+        '5XX':
+          $ref: "#/components/responses/ErrorUnexpected"
+
+  /rest_api/result/{hash}:
+    get:
+      summary: Returns processing job result.
+      parameters:
+        - in: path
+          name: hash
+          schema:
+            type: string
+          required: true
+      responses:
+        '200':
+          $ref: "#/components/responses/ProcessResult"
+        '404':
+          description: Not Found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorMessage"
+              examples:
+                job-not-found:
+                  value:
+                    message: Job not found
+                job-deleted:
+                  value:
+                    message: Image deleted
+                    status: complete
+        '500':
+          $ref: "#/components/responses/ErrorJobFailed"
+        '5XX':
+          $ref: "#/components/responses/ErrorUnexpected"
+components:
+  schemas:
+    StorageUrl:
+      type: string
+      example: storage://{storage_name}/{?path}
+    FitTypes:
+      type: string
+      default: canvas
+      enum:
+        - cover
+        - canvas
+        - bounds
+        - crop
+    CropTypes:
+      externalDocs:
+        description: Find more info here
+        url: https://documentation.deep-image.ai/image-processing/resize-and-padding#types-of-crop
+      type: string
+      enum:
+        - item
+        - content
+        - center
+    FitType:
+      externalDocs:
+        description: Find more info here
+        url: https://documentation.deep-image.ai/image-processing/resize-and-padding#fitting-and-padding
+      default: canvas
+      description: |
+        - canvas - Whole image is placed into width x height canvas, missing space is filled with background color.
+        - crop - Image is cropped to match destination width x height canvas. Crop is content aware by default. It can be changed to be on center as well.
+        - bounds - Image is upscaled to fit specified width x height.
+        - cover - Image is upscaled to fully cover specified width x height.
+      oneOf:
+        - $ref: "#/components/schemas/FitTypes"
+        - type: object
+          required:
+            - crop
+          properties:
+            crop:
+              $ref: "#/components/schemas/CropTypes"
+    EnhancementTypes:
+      type: string
+      enum:
+        - denoise
+        - deblur
+        - clean
+        - face_enhance
+        - light
+        - color
+        - white_balance
+        - exposure_correction
+    DenoiseEnhancementModelTypes:
+      type: string
+      default: v1
+      enum:
+        - v1
+        - v2
+    DeblurEnhancementModelTypes:
+      type: string
+      default: v1
+      enum:
+        - v1
+        - v2
+    LightEnhancementTypes:
+      type: string
+      enum:
+        - contrast
+        - hdr_light
+        - hdr_light_advanced
+    ColorEnhancementTypes:
+      type: string
+      enum:
+        - contrast
+        - hdr_light
+        - hdr_light_advanced
+    DenoiseParameters:
+      externalDocs:
+        description: Find more info here
+        url: https://documentation.deep-image.ai/image-processing/enhance-details
+      description: |
+        To use the denoise parameters effectively, the ***[denoise](https://documentation.deep-image.ai/image-processing/enhance-details)*** enhancement needs to be sent along with it.
+      type: object
+      properties:
+        type:
+          $ref: "#/components/schemas/DenoiseEnhancementModelTypes"
+    DeblurParameters:
+      description: |
+        To use the deblur parameters effectively, the ***[deblur](https://documentation.deep-image.ai/image-processing/enhance-details)*** enhancement needs to be sent along with it.
+      externalDocs:
+        description: Find more info here
+        url: https://documentation.deep-image.ai/image-processing/enhance-details
+      type: object
+      properties:
+        type:
+          $ref: "#/components/schemas/DeblurEnhancementModelTypes"
+    LightParameters:
+      description: |
+        To use the light parameters effectively, the ***[light](https://documentation.deep-image.ai/image-processing/enhance-lighting-and-colors)*** enhancement needs to be sent along with it.
+      externalDocs:
+        description: Find more info here
+        url: https://documentation.deep-image.ai/image-processing/enhance-lighting-and-colors#types-of-light-and-colors-algorithms
+      type: object
+      properties:
+        type:
+          $ref: "#/components/schemas/LightEnhancementTypes"
+        level:
+          $ref: "#/components/schemas/Intensity"
+    ColorParameters:
+      description: |
+        To use the color parameters effectively, the ***[color](https://documentation.deep-image.ai/image-processing/enhance-lighting-and-colors)*** enhancement needs to be sent along with it.
+      externalDocs:
+        description: Find more info here
+        url: https://documentation.deep-image.ai/image-processing/enhance-lighting-and-colors#types-of-light-and-colors-algorithms
+      type: object
+      properties:
+        type:
+          $ref: "#/components/schemas/ColorEnhancementTypes"
+        level:
+          $ref: "#/components/schemas/Intensity"
+    WhiteBalanceParameters:
+      description: |
+        To use the white balance parameters effectively, the ***[white_balance](https://documentation.deep-image.ai/image-processing/enhance-lighting-and-colors)*** enhancement needs to be sent along with it.
+      externalDocs:
+        description: Find more info here
+        url: https://documentation.deep-image.ai/image-processing/enhance-lighting-and-colors#white-balance-correction
+      type: object
+      properties:
+        level:
+          $ref: "#/components/schemas/Intensity"
+    Intensity:
+      type: number
+      minimum: 0
+      maximum: 1
+      default: 1
+    BackgroundRemoveTypes:
+      type: string
+      enum:
+        - auto
+        - human
+        - item
+      default: auto
+    Color:
+      description: "E.g. rgb(red, green, blue), #rrggbbaa, hsl(hue, saturation%, lightness%), hsv(hue, saturation%, value%) and common HTML color names."
+      example: white
+      type: string
+    ImageUrl:
+      description: Image url, Base64 encoded image or storage url (storage://{storage_name}/{?path})
+      type: string
+      example: https://deep-image.ai/api-example2.jpg
+    GenerateAdapterTypes:
+      type: string
+      default: generate_background
+      enum:
+        - generate_background
+        - face
+        - control
+    GenerateParameters:
+      type: object
+      properties:
+        description:
+          type: string
+        item_area_percentage:
+          type: number
+          minimum: 0
+          maximum: 1
+          default: 1
+          example: 0.5
+        sample_num:
+          type: integer
+        color:
+          $ref: "#/components/schemas/Color"
+        additional_prompt:
+          type: string
+        negative_prompt:
+          type: string
+        adapter_type:
+          $ref: "#/components/schemas/GenerateAdapterTypes"
+    BackgroundParameters:
+      type: object
+      properties:
+        remove:
+          $ref: "#/components/schemas/BackgroundRemoveTypes"
+        color:
+          $ref: "#/components/schemas/Color"
+        replace:
+          $ref: "#/components/schemas/ImageUrl"
+        generate:
+          $ref: "#/components/schemas/GenerateParameters"
+    Quality:
+      externalDocs:
+        description: Find more info here
+        url: https://documentation.deep-image.ai/image-processing/additional-parameters
+      type: integer
+      description: Integer value for the level of jpeg or webp compression.
+      minimum: 0
+      maximum: 100
+      default: 85
+      example: 50
+    PrintSize:
+      description: Name of the paper size format, f.e. A4, B0, letter, etc.
+      type: string
+      enum:
+        - a0
+        - a1
+        - a2
+        - a3
+        - a4
+        - a5
+        - a6
+        - a7
+        - a8
+        - a9
+        - a10
+        - b0
+        - b1
+        - b2
+        - b3
+        - b4
+        - b5
+        - b6
+        - b7
+        - b8
+        - b9
+        - b10
+        - a2extra
+        - a3extra
+        - a3super
+        - supera3
+        - a4extra
+        - a4super
+        - supera4
+        - a4long
+        - a5extra
+        - sob5extra
+        - letter
+        - legal
+        - executive
+        - tabloid
+        - statement
+        - halfletter
+        - folio
+        - flsa
+        - flse
+        - note
+        - 11x17
+        - 10x14
+        - c0
+        - c1
+        - c2
+        - c3
+        - c4
+        - c5
+        - c6
+        - c7
+        - c8
+        - c9
+        - c10
+        - juniorlegal
+        - memo
+        - governmentletter
+        - governmentlegal
+        - ledger
+        - arch1
+        - arch2
+        - arch3
+        - arch4
+        - arch5
+        - arch6
+        - archa
+        - archb
+        - archc
+        - archd
+        - arche1
+        - arche
+        - arche2
+        - arche3
+      example: a4
+    Dpi:
+      type: integer
+      default: 300
+      description: |
+        To use the dpi effectively, the ***print_size*** needs to be sent along with it.
+    OutputFormat:
+      externalDocs:
+        description: Find more info here
+        url: https://documentation.deep-image.ai/image-processing/additional-parameters
+      type: string
+      description: The format of the output image.
+      enum:
+        - jpeg
+        - jpg
+        - png
+        - webp
+    MaxFileSize:
+      externalDocs:
+        description: Find more info here
+        url: https://documentation.deep-image.ai/image-processing/additional-parameters
+      type: string
+      description: Integer or string value with maximum file size. It supports "kb", "mb" and "gb" units. It is used with output_format equals jpeg or webp. When specified, Deep Image API tries to match highest possible jpeg quality and specified max_file_size.
+      example: 1MB
+    PrintReorientation:
+      description: true/false - swap target width and height values to match paper size orientation.
+      type: boolean
+      default: true
+    CustomPreset:
+      description: Coming soon
+      type: string
+    PresetTypes:
+      type: string
+      enum:
+        - real_estate
+        - real_estate_upscaled
+        - ecommerce
+        - ecommerce_upscaled
+    Preset:
+      externalDocs:
+        description: Find more info here
+        url: https://documentation.deep-image.ai/image-processing/presets
+      oneOf:
+        - $ref: "#/components/schemas/CustomPreset"
+        - $ref: "#/components/schemas/PresetTypes"
+    Width:
+      externalDocs:
+        description: Find more info here
+        url: https://documentation.deep-image.ai/image-processing/resize-and-padding#image-size
+      oneOf:
+        - type: integer
+          example: 1000
+        - type: string
+          example: "200%"
+      description: |
+        - string f.e. - "200%" - it will upscale image by factor 2.
+        - integer f.e. - 200 - it will upscale/downscale image to have width 200 pixels. If the height is not given it will be calculated to match image ratio.
+    Height:
+      externalDocs:
+        description: Find more info here
+        url: https://documentation.deep-image.ai/image-processing/resize-and-padding#image-size
+      oneOf:
+        - type: integer
+          example: 1000
+        - type: string
+          example: "200%"
+      description: |
+        - string f.e. - "200%" - it will upscale image by factor 2.
+        - integer f.e. - 200 - it will upscale/downscale image to have height 200 pixels. If the width is not given it will be calculated to match image ratio.
+    MinLength:
+      externalDocs:
+        description: Find more info here
+        url: https://documentation.deep-image.ai/image-processing/resize-and-padding#image-size
+      type: integer
+      description: Integer f.e. - 200 - it will upscale/downscale image to have minimum 200 pixels width or height. That will also be applied to identified item/content when removing background.
+    Padding:
+      externalDocs:
+        description: Find more info here
+        url: https://documentation.deep-image.ai/image-processing/resize-and-padding#fitting-and-padding
+      oneOf:
+        - type: integer
+          example: 1000
+        - type: string
+          example: "200%"
+      description: When margin is needed, parameter padding can be used for that. It can be specified either in pixels or in percentages.
+    ProcessPayload:
+      type: object
+      properties:
+        url:
+          $ref: "#/components/schemas/ImageUrl"
+        target:
+          $ref: "#/components/schemas/StorageUrl"
+        width:
+          $ref: "#/components/schemas/Width"
+        height:
+          $ref: "#/components/schemas/Height"
+        min_length:
+          $ref: "#/components/schemas/MinLength"
+        padding:
+          $ref: "#/components/schemas/Padding"
+        fit:
+          $ref: "#/components/schemas/FitType"
+        enhancements:
+          type: array
+          items:
+            $ref: "#/components/schemas/EnhancementTypes"
+        background:
+          $ref: "#/components/schemas/BackgroundParameters"
+        preset:
+          $ref: "#/components/schemas/Preset"
+        output_format:
+          $ref: "#/components/schemas/OutputFormat"
+        max_file_size:
+          $ref: "#/components/schemas/MaxFileSize"
+        quality:
+          $ref: "#/components/schemas/Quality"
+        dpi:
+          $ref: "#/components/schemas/Dpi"
+        print_size:
+          $ref: "#/components/schemas/PrintSize"
+        print_reorientation:
+          $ref: "#/components/schemas/PrintReorientation"
+        denoise_parameters:
+          $ref: "#/components/schemas/DenoiseParameters"
+        deblur_parameters:
+          $ref: "#/components/schemas/DeblurParameters"
+        light_parameters:
+          $ref: "#/components/schemas/LightParameters"
+        color_parameters:
+          $ref: "#/components/schemas/ColorParameters"
+        white_balance_parameters:
+          $ref: "#/components/schemas/WhiteBalanceParameters"
+    ErrorCode:
+      type: object
+      properties:
+        code:
+          type: string
+    ErrorMessage:
+      type: object
+      properties:
+        message:
+          type: string
+    Error:
+      type: object
+      allOf:
+        - $ref: "#/components/schemas/ErrorCode"
+        - $ref: "#/components/schemas/ErrorMessage"
+    ProcessResult:
+      type: object
+      properties:
+        status:
+          type: string
+          enum:
+            - received
+            - not_started
+            - in_progress
+            - complete
+        result_url:
+          type: string
+        job:
+          type: string
+      required:
+        - job
+      example:
+        status: "complete"
+        result_url: "https://neuroapi-store.s3.eu-central-1.amazonaws.com/2024-03-07/d894c96a-0dda-46cd-9197-10c596f7e27c.jpg"
+        job: "a8784c00-dc6b-11ee-ad50-9ec3ba0205c0"
+  examples:
+    ErrorUnidentifiedImage:
+      summary: Unidentified image
+      value:
+        message: Unidentified image
+        code: BAD_REQUEST
+    ErrorFileIsTooLarge:
+      summary: Image cannot be upscaled above {max_width} x {max_height} pixels limit.
+      value:
+        message: Image cannot be upscaled above {max_width} x {max_height} pixels limit.
+        code: BAD_REQUEST
+    ErrorNoImage:
+      summary: File or image url is required
+      value:
+        message: File or image url is required
+    ErrorNotEnoughCredits:
+      summary: You dont have enough credits to perform those actions
+      value:
+        message: You dont have enough credits to perform those actions
+        code: NOT_ENOUGH_CREDITS
+    ErrorPresetNotFound:
+      summary: Preset {preset_name} not found!
+      value:
+        message: Preset {preset_name} not found!
+    ErrorStorageSourceExample1:
+      summary: Storage - The source storage credentials are incorrect.
+      value:
+        message: The source storage credentials are incorrect.
+    ErrorStorageSourceExample2:
+      summary: Storage - Make sure your source url/storage has sufficient permissions.
+      value:
+        message: Make sure your source url/storage has sufficient permissions.
+    ErrorStorageSourceExample3:
+      summary: Storage - Make sure your source url/storage is correct.
+      value:
+        message: Make sure your source url/storage is correct.
+    ErrorStorageSourceExample4:
+      summary: Storage - Invalid source storage.
+      value:
+        message: Invalid source storage.
+    ErrorStorageSourceExample5:
+      summary: Storage - The source storage token has been expired or revoked.
+      value:
+        message: The source storage token has been expired or revoked.
+    ErrorStorageTargetExample1:
+      summary: Storage - The target storage credentials are incorrect.
+      value:
+        message: The target storage credentials are incorrect.
+    ErrorStorageTargetExample2:
+      summary: Storage - Make sure your target url/storage has sufficient permissions.
+      value:
+        message: Make sure your target url/storage has sufficient permissions.
+    ErrorStorageTargetExample3:
+      summary: Storage - Make sure your target url/storage is correct.
+      value:
+        message: Make sure your target url/storage is correct.
+    ErrorStorageTargetExample4:
+      summary: Storage - Invalid target storage.
+      value:
+        message: Invalid target storage.
+    ErrorStorageTargetExample5:
+      summary: Storage - The target storage token has been expired or revoked.
+      value:
+        message: The target storage token has been expired or revoked.
+    ErrorStorageExample1:
+      summary: Found folder instead of file
+      value:
+        message: Found folder instead of file
+    ErrorStorageExample2:
+      summary: The file is not an image
+      value:
+        message: The file is not an image
+    ErrorStorageGoogleDriveExample1:
+      summary: Storage Google Drive - The file id not specified
+      value:
+        message: The file id not specified
+    ErrorStorageAWSExample1:
+      summary: Storage AWS S3 - File key not specified
+      value:
+        message: File key not specified
+    ErrorStorageDropboxOnedriveExample1:
+      summary: Storage Dropbox/OneDrive - File path not specified
+      value:
+        message: File path not specified
+  responses:
+    ProcessResult:
+      description: Returns processing result
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ProcessResult'
+    ErrorProcessBadRequest:
+      description: Bad Request
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: "#/components/schemas/ErrorMessage"
+              - type: object
+                properties:
+                  code:
+                    type: string
+          examples:
+            ErrorNoImage:
+              $ref: "#/components/examples/ErrorNoImage"
+            ErrorNotEnoughCredits:
+              $ref: "#/components/examples/ErrorNotEnoughCredits"
+            ErrorPresetNotFound:
+              $ref: "#/components/examples/ErrorPresetNotFound"
+            ErrorStorageExample1:
+              $ref: "#/components/examples/ErrorStorageExample1"
+            ErrorStorageExample2:
+              $ref: "#/components/examples/ErrorStorageExample2"
+            ErrorStorageGoogleDriveExample1:
+              $ref: "#/components/examples/ErrorStorageGoogleDriveExample1"
+            ErrorStorageAWSExample1:
+              $ref: "#/components/examples/ErrorStorageAWSExample1"
+            ErrorStorageDropboxOnedriveExample1:
+              $ref: "#/components/examples/ErrorStorageDropboxOnedriveExample1"
+            ErrorStorageSourceExample1:
+              $ref: "#/components/examples/ErrorStorageSourceExample1"
+            ErrorStorageSourceExample2:
+              $ref: "#/components/examples/ErrorStorageSourceExample2"
+            ErrorStorageSourceExample3:
+              $ref: "#/components/examples/ErrorStorageSourceExample3"
+            ErrorStorageSourceExample4:
+              $ref: "#/components/examples/ErrorStorageSourceExample4"
+            ErrorStorageSourceExample5:
+              $ref: "#/components/examples/ErrorStorageSourceExample5"
+            ErrorStorageTargetExample1:
+              $ref: "#/components/examples/ErrorStorageTargetExample1"
+            ErrorStorageTargetExample2:
+              $ref: "#/components/examples/ErrorStorageTargetExample2"
+            ErrorStorageTargetExample3:
+              $ref: "#/components/examples/ErrorStorageTargetExample3"
+            ErrorStorageTargetExample4:
+              $ref: "#/components/examples/ErrorStorageTargetExample4"
+            ErrorStorageTargetExample5:
+              $ref: "#/components/examples/ErrorStorageTargetExample5"
+    ErrorForbidden:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorMessage"
+          examples:
+            x-api-key:
+              summary: No x-api-key header is provided
+              value:
+                message: No x-api-key header is provided
+            no-more-request:
+              summary: No more requests are available
+              value:
+                message: No more requests are available
+            x-application-name:
+              summary: No x-application-name header is provided
+              value:
+                message: No x-application-name header is provided
+    ErrorNotFound:
+      description: Not Found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorMessage"
+          example:
+            message: No user found for provided token
+    ErrorJobFailed:
+      description: Job Processing Failed
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: "#/components/schemas/ErrorMessage"
+              - type: object
+                properties:
+                  status:
+                    type: string
+                  job:
+                    type: string
+                required:
+                  - status
+                  - job
+          example:
+            message: We have encountered some technical issues while processing the image. No credits were lost. Please try again.
+            status: failed
+            job: string
+    ErrorTooManyRequests:
+      description: Too Many Requests
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+          example:
+            message: Image cannot be processed right now. Your rate limit is {rate_limit} and you are currently processing {active_jobs_amount} images.
+            code: TOO_MANY_REQUESTS
+    ErrorUnexpected:
+      description: Unexpected Error
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  requestBodies:
+    ProcessBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ProcessPayload"
+          examples:
+            Upscale image from url:
+              value:
+                url: https://deep-image.ai/api-example2.jpg
+                width: 200%
+                height: 200%
+            Upscale Base64 encoded image:
+              value:
+                url: "base64,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"
+                width: 200%
+                height: 200%
+            Generate image:
+              value:
+                background:
+                  generate:
+                    description: happy apple
+            Remove background:
+              value:
+                url: https://deep-image.ai/api-example2.jpg
+                background:
+                  remove: auto
+            Remove and generate background:
+              value:
+                url: https://deep-image.ai/api-example2.jpg
+                background:
+                  generate: { "description": "item standing on sand with beach in background",
+                              "item_area_percentage": 0.65, }
+            Upscale image from storage:
+              value:
+                url: storage://{storage_name}/folder/my-image.jpg
+                width: 200%
+                height: 200%
+            Upscale image and upload to storage:
+              value:
+                url: https://deep-image.ai/api-example2.jpg
+                target: storage://{storage_name}/folder/
+                width: 200%
+                height: 200%
+        multipart/form-data:
+          schema:
+            type: object
+            properties:
+              fileName:
+                type: string
+                format: binary
+              parameters:
+                allOf:
+                  - description: Stringified JSON object
+                    example:
+                      height: 200%
+                      width: 200%
+                  - $ref: "#/components/schemas/ProcessPayload"
+            required:
+              - fileName
+              - parameters
+          encoding:
+            fileName:
+              contentType: application/octet-stream
+            parameters:
+              contentType: application/json
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-KEY
+security:
+  - ApiKeyAuth: [ ]
